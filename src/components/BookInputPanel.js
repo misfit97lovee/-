@@ -7,7 +7,6 @@ export function renderBookInputPanel(container, { onSendToChat, onSendImage }) {
     container.innerHTML = `
       <div class="panel-header">
         <div class="panel-title">
-          <span>📖</span>
           <span>책 내용</span>
         </div>
       </div>
@@ -15,18 +14,15 @@ export function renderBookInputPanel(container, { onSendToChat, onSendImage }) {
       <div class="panel-body">
         <div class="book-tabs">
           <button class="book-tab-btn ${activeTab === 'image' ? 'active' : ''}" data-tab="image">
-            책 사진 올리기
+            사진
           </button>
           <button class="book-tab-btn ${activeTab === 'direct' ? 'active' : ''}" data-tab="direct">
             직접 입력
           </button>
-          <button class="book-tab-btn ${activeTab === 'paste' ? 'active' : ''}" data-tab="paste">
-            복사 / 붙여넣기
-          </button>
         </div>
 
         ${activeTab === 'image' ? renderImageTab(selectedFile, previewUrl) : ''}
-        ${activeTab === 'direct' || activeTab === 'paste' ? renderTextTab(activeTab) : ''}
+        ${activeTab === 'direct' ? renderTextTab(activeTab) : ''}
       </div>
     `;
 
@@ -67,6 +63,9 @@ export function renderBookInputPanel(container, { onSendToChat, onSendImage }) {
     }
 
     if (dropZone) {
+      dropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput?.click(); }
+      });
       dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.style.borderColor = 'var(--primary)';
@@ -162,7 +161,7 @@ function renderImageTab(selectedFile, previewUrl) {
       />
 
       ${previewUrl ? `
-        <div style="position: relative; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); background: #000; text-align: center;">
+        <div style="position: relative; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); background: var(--bg-subtle); text-align: center;">
           <img
             src="${previewUrl}"
             alt="책 사진 미리보기"
@@ -180,13 +179,12 @@ function renderImageTab(selectedFile, previewUrl) {
       ` : `
         <div
           id="photo-dropzone"
-          class="phase-placeholder"
-          style="cursor: pointer; transition: all 0.2s; padding: 36px 16px;"
+          class="phase-placeholder photo-dropzone"
+          role="button" tabindex="0" aria-label="책 페이지 사진 올리기"
         >
-          <div style="font-size: 36px;">📸</div>
-          <div style="font-weight: 700; color: var(--text-primary); margin-top: 4px;">책 페이지 사진 업로드</div>
+          <div style="font-weight: 500; color: var(--text-primary); margin-top: 4px;">책 페이지를 올려주세요</div>
           <p style="color: var(--text-secondary); font-size: 12px; margin-top: 2px;">
-            클릭하거나 이미지를 여기로 드래그하세요 (jpg, png)
+            JPG, PNG
           </p>
         </div>
       `}
@@ -194,9 +192,10 @@ function renderImageTab(selectedFile, previewUrl) {
       <input
         type="text"
         id="photo-comment-input"
+        aria-label="사진에 대해 궁금한 점 (선택)"
         class="book-title-input"
         style="width: 100%;"
-        placeholder="어떤 부분이 궁금한지 간단히 남겨도 좋아 (선택)"
+        placeholder="궁금한 점이 있다면 적어주세요"
       />
 
       <button
@@ -204,7 +203,7 @@ function renderImageTab(selectedFile, previewUrl) {
         class="btn-send-book"
         ${!selectedFile ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
       >
-        AI에게 보여주기
+        이 부분 물어보기
       </button>
     </div>
   `;
@@ -215,11 +214,11 @@ function renderTextTab(activeTab) {
     <textarea
       id="book-text-input"
       class="book-input-textarea"
-      placeholder="${activeTab === 'direct' ? '책을 읽다가 이해하기 어려웠던 문장이나 표현을 직접 입력해보세요.\n예) 그는 대답 대신 창밖만 바라보았다.' : '책의 일부 문단이나 긴 문맥을 복사해 붙여넣어보세요.'}"
+      aria-label="책 내용 직접 입력" placeholder="어려운 문장이나 표현을 입력하거나 붙여넣어 주세요."
     ></textarea>
 
     <button id="btn-submit-book-text" class="btn-send-book">
-      AI에게 물어보기
+      이 부분 물어보기
     </button>
   `;
 }

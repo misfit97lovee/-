@@ -7,19 +7,17 @@ export function renderOnboardingModal(container, { currentGrade, onSelectGrade, 
 
   container.innerHTML = `
     <div class="modal-backdrop" id="modal-backdrop">
-      <div class="modal-content">
-        <div style="font-size: 36px; margin-bottom: 8px;">🎓</div>
-        <h2 class="modal-title">몇 학년이야?</h2>
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="grade-modal-title">
+        <h2 class="modal-title" id="grade-modal-title">몇 학년이야?</h2>
         <p class="modal-subtitle">학년에 맞춰 설명 난이도와 어휘를 알맞게 조절해 줄게.</p>
 
         <div class="grade-options">
           ${grades.map(g => `
             <button class="grade-card-btn ${currentGrade === g.value ? 'selected' : ''}" data-grade="${g.value}">
               <div style="text-align: left;">
-                <div style="font-weight: 700; color: var(--text-primary);">${g.title}</div>
+                <div style="font-weight: 600; color: var(--text-primary);">${g.title}</div>
                 <div style="font-size: 12px; color: var(--text-secondary); font-weight: normal; margin-top: 2px;">${g.desc}</div>
               </div>
-              <div style="font-size: 18px; color: var(--primary);">➔</div>
             </button>
           `).join('')}
         </div>

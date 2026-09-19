@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 독서 파트너 — 중학생을 위한 소크라테스식 독서 에이전트</title>
-    <meta name="description" content="책을 읽다가 어려운 문장과 표현을 만났을 때 스스로 생각하고 이해하도록 돕는 중학생용 AI 독서 이해 도우미" />
+    <title>읽기 도우미 · 책읽기</title>
+    <meta name="description" content="어려운 문장을 함께 읽고, 나만의 독서 기록을 남겨보세요." />
     <!-- Google Fonts & Pretendard -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -18,9 +18,9 @@
 
       <!-- 모바일 탭 내비게이션 (모바일에서만 노출) -->
       <nav id="mobile-nav" class="mobile-nav">
-        <button class="mobile-tab-btn active" data-target="panel-book">📖 책 내용</button>
-        <button class="mobile-tab-btn" data-target="panel-chat">💬 AI 대화</button>
-        <button class="mobile-tab-btn" data-target="panel-record">📝 독서 기록</button>
+        <button class="mobile-tab-btn active" data-target="panel-book">책 내용</button>
+        <button class="mobile-tab-btn" data-target="panel-chat">함께 읽기</button>
+        <button class="mobile-tab-btn" data-target="panel-record">독서 기록</button>
       </nav>
 
       <!-- 글로벌 알림 / 에러 배너 -->
@@ -32,10 +32,10 @@
         <section id="panel-book" class="panel-section panel-book active"></section>
 
         <!-- 영역 2: AI 독서 대화 패널 -->
-        <section id="panel-chat" class="panel-section panel-chat active"></section>
+        <section id="panel-chat" class="panel-section panel-chat"></section>
 
         <!-- 영역 3: 독서 기록 & TAO 로그 패널 -->
-        <section id="panel-record" class="panel-section panel-record active"></section>
+        <section id="panel-record" class="panel-section panel-record"></section>
       </main>
 
       <!-- 온보딩 모달 (학년 선택) -->

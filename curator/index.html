@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>책 추천 · 책읽기</title>
+  <meta name="description" content="관심 있는 주제로 책을 찾고, 읽기 도우미와 함께 읽어요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="header-container"></header>
+  <main class="recommendation-page">
+    <div class="recommendation-heading">
+      <h1>어떤 책을 찾고 있어?</h1>
+      <p>관심 있는 주제나 요즘 읽고 싶은 이야기를 알려줘.</p>
+    </div>
+    <section class="recommendation-chat" aria-label="책 추천 대화">
+      <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
+      <div class="quick-chips-bar" id="quickChips">
+        <span class="chips-label">이렇게 시작해 보세요</span>
+        <div class="quick-chips-list">
+          <button class="chip-btn" onclick="sendQuickPrompt('우주와 블랙홀에 대한 흥미진진한 과학 책 추천해줘')">우주와 블랙홀</button>
+          <button class="chip-btn" onclick="sendQuickPrompt('중학생이 읽기 좋은 미스터리 추리소설 추천해줘')">흥미진진한 추리소설</button>
+          <button class="chip-btn" onclick="sendQuickPrompt('인공지능과 미래 기술에 대해 쉽게 알려주는 책 있을까?')">인공지능과 미래</button>
+        </div>
+      </div>
+      <div class="chat-input-container">
+        <div class="chat-input-box">
+          <textarea id="chatInput" class="chat-textarea" rows="1" aria-label="읽고 싶은 책이나 관심사" placeholder="읽고 싶은 책이나 관심사를 적어주세요" onkeydown="handleInputKeydown(event)"></textarea>
+          <button id="sendBtn" class="send-btn" onclick="handleSendMessage()">보내기</button>
+        </div>
+        <span class="input-hint">Enter로 보내기 · Shift + Enter로 줄바꿈</span>
+      </div>
+    </section>
+    <button class="header-btn note-shortcut" onclick="openNoteModal()" id="headerNoteBtn" style="display: none;">독서노트 보기</button>
+  </main>
+  <!-- Internal diagnostics remain available to the existing engine only. -->
+  <div hidden inert aria-hidden="true">
+    <div id="hudGrade"></div><div id="hudInterests"></div>
+    <div id="hudBooksCount"></div><div id="hudDocStatus"></div>
+    <div id="taoTimeline"></div><div id="settingsModal"></div>
+  </div>
+  <div class="modal-overlay" id="noteModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2> 독서노트</h2>
+        <button class="modal-close-btn" onclick="closeNoteModal()" aria-label="독서노트 닫기">닫기</button>
+      </div>
+      <div class="modal-body" id="noteModalBody">
+        <!-- Rendered Note Sheet -->
+      </div>
+      <div class="modal-footer">
+        <button class="header-btn" onclick="copyMarkdownContent()">
+           마크다운 복사
+        </button>
+        <button class="header-btn" onclick="downloadMarkdownFile()">
+           .md 파일 저장
+        </button>
+        <button class="header-btn primary" onclick="printStudyNote()">
+           PDF 인쇄 / 저장
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

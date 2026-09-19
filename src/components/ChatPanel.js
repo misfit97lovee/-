@@ -1,3 +1,5 @@
+import { formatText } from '../formatText.js';
+
 export function renderChatPanel(container, { state, onSendMessage, onExplainLevel, onCheckUnderstanding, isLoading }) {
   const messages = state.session.recentMessages;
 
@@ -5,17 +7,15 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
     <div class="chat-container">
       <div class="panel-header">
         <div class="panel-title">
-          <span>💬</span>
-          <span>AI 독서 대화</span>
+          <span>함께 읽기</span>
         </div>
       </div>
 
-      <div class="chat-messages" id="chat-messages-box">
+      <div class="chat-messages" id="chat-messages-box" role="log" aria-live="polite">
         ${messages.length === 0 ? `
-          <div style="text-align: center; color: var(--text-muted); margin-top: 60px; font-size: 14px;">
-            <div style="font-size: 40px; margin-bottom: 12px;">📚</div>
-            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">독서 대화를 시작해보세요!</div>
-            <p>책 사진을 올리거나 모르는 문장을 보여주면<br/>스스로 생각하고 이해할 수 있도록 도와줄게요.</p>
+          <div style="color: var(--text-muted); font-size: 14px;">
+            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">어떤 부분이 궁금한가요?</div>
+            <p>책 사진이나 어려운 문장을 보내주세요.<br/>함께 읽으며 하나씩 알아갈게요.</p>
           </div>
         ` : ''}
 
@@ -23,9 +23,6 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
           const showButtons = shouldShowActionButtons(msg, idx, messages, isLoading, state);
           return `
             <div class="chat-bubble ${msg.role}">
-              <div class="chat-avatar">
-                ${msg.role === 'user' ? '🧑‍🎓' : '🤖'}
-              </div>
               <div class="chat-content">
                 ${msg.image?.data ? `
                   <div style="margin-bottom: 8px;">
@@ -36,12 +33,11 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
                     />
                   </div>
                 ` : ''}
-                <div>${escapeHtml(msg.content)}</div>
+                <div class="markdown-content">${formatText(msg.content)}</div>
 
                 ${msg.role === 'assistant' && Array.isArray(msg.evidence) && msg.evidence.length > 0 ? `
                   <div class="evidence-box">
                     <div class="evidence-header">
-                      <span>📌</span>
                       <span>책에서 본 근거</span>
                     </div>
                     <div class="evidence-list">
@@ -55,13 +51,13 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
                 ${showButtons ? `
                   <div class="explanation-btn-group" style="display: flex; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
                     <button class="btn-explain-level btn-level-simple" data-level="simple" title="핵심만 2~4문장으로 간단히 설명">
-                      🔍 더 간단히
+                      더 쉽게
                     </button>
                     <button class="btn-explain-level btn-level-detailed" data-level="detailed" title="앞뒤 문맥과 예시를 덧붙여 자세히 설명">
-                      📖 조금 더 자세히
+                      더 자세히
                     </button>
                     <button class="btn-explain-level btn-level-quiz" title="내가 제대로 이해했는지 확인 질문 받기">
-                      🧠 이해했는지 확인하기
+                      이해 확인
                     </button>
                   </div>
                 ` : ''}
@@ -72,7 +68,6 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
 
         ${isLoading ? `
           <div class="chat-bubble assistant">
-            <div class="chat-avatar">🤖</div>
             <div class="chat-content">
               <div class="typing-indicator">
                 <div class="typing-dot"></div>
@@ -88,8 +83,7 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
       ${state?.session?.suggestedQuestions && state.session.suggestedQuestions.length > 0 ? `
         <div class="suggested-questions-area">
           <div class="suggested-header">
-            <span>💡</span>
-            <span>이런 게 궁금할 수 있어요</span>
+            <span>이런 것도 물어볼 수 있어요</span>
           </div>
           <div class="suggested-chips-list">
             ${state.session.suggestedQuestions.map(q => `
@@ -102,13 +96,13 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
       ` : `
         <div class="quick-chips-area">
           <button class="quick-chip-btn" data-text="그냥 바로 설명해줘." ${isLoading ? 'disabled' : ''}>
-            💡 그냥 설명해줘
+            바로 설명해줘
           </button>
           <button class="quick-chip-btn" data-text="단어 뜻이 잘 이해가 안 돼." ${isLoading ? 'disabled' : ''}>
-            📖 단어 뜻이 어려워
+            단어 뜻이 궁금해
           </button>
           <button class="quick-chip-btn" data-text="인물이 왜 이렇게 행동했는지 모르겠어." ${isLoading ? 'disabled' : ''}>
-            🤔 인물 행동 이유가 궁금해
+            인물은 왜 그랬을까?
           </button>
         </div>
       `}
@@ -117,13 +111,14 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
         <input
           type="text"
           id="chat-input-text"
+          aria-label="궁금한 점 입력"
           class="chat-input"
-          placeholder="${isLoading ? 'AI가 답변을 준비하고 있어요...' : '궁금한 점이나 생각을 자유롭게 적어봐...'}"
+          placeholder="${isLoading ? '답변을 준비하고 있어요…' : '궁금한 점을 적어주세요'}"
           autocomplete="off"
           ${isLoading ? 'disabled' : ''}
         />
         <button type="submit" class="btn-chat-send" ${isLoading ? 'disabled' : ''}>
-          전송
+          보내기
         </button>
       </form>
     </div>
@@ -176,7 +171,7 @@ export function renderChatPanel(container, { state, onSendMessage, onExplainLeve
     });
   });
 
-  // [🧠 이해했는지 확인하기] 버튼 클릭
+  // [이해 확인] 버튼 클릭
   container.querySelectorAll('.btn-level-quiz').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!isLoading && onCheckUnderstanding) {
@@ -197,7 +192,7 @@ function escapeHtml(str) {
 }
 
 /**
- * 퀴즈 출제 중에는 3개 버튼([더 간단히], [조금 더 자세히], [🧠 이해했는지 확인하기])을 숨기고,
+ * 퀴즈 출제 중에는 3개 버튼([더 간단히], [조금 더 자세히], [이해 확인])을 숨기고,
  * 퀴즈가 끝나거나 일반 설명일 때만 표시하는 판단 함수
  */
 function shouldShowActionButtons(msg, idx, messages, isLoading, state = null) {

@@ -1,54 +1,32 @@
-export function renderHeader(container, state, { onOpenGradeModal, onResetSession, onTitleChange }) {
-  const gradeText = state.student.grade ? `${state.student.grade}` : '학년 선택';
-
-  container.innerHTML = `
+export function serviceHeader(activePage, gradeControl, resetControl) {
+  return `
     <div class="app-header">
-      <div class="header-left">
-        <div class="app-logo">
-          <span>📖</span>
-          <span>AI 독서 파트너</span>
-          <span class="logo-badge">기본형</span>
-        </div>
-      </div>
+      <a class="app-logo" href="/curator/index.html" aria-label="책읽기 홈">책읽기</a>
+      <nav class="service-nav" aria-label="주 메뉴">
+        <a href="/curator/index.html" ${activePage === 'recommend' ? 'aria-current="page"' : ''}>책 추천</a>
+        <a href="/" ${activePage === 'reading' ? 'aria-current="page"' : ''}>읽기 도우미</a>
+      </nav>
+      <div class="header-right">${gradeControl}${resetControl}</div>
+    </div>`;
+}
 
-      <div class="header-center">
-        <input
-          type="text"
-          id="header-book-title"
-          class="book-title-input"
-          placeholder="읽고 있는 책 제목 입력..."
-          value="${state.book.title || ''}"
-        />
-      </div>
+export function renderHeader(container, state, { onOpenGradeModal, onResetSession, onTitleChange }) {
+  const gradeText = state.student.grade || '학년 선택';
+  container.innerHTML = serviceHeader('reading',
+    `<button id="btn-grade-toggle" class="grade-control" aria-label="학년 변경">${gradeText}<span aria-hidden="true">⌄</span></button>`,
+    '<button id="btn-reset-session" class="btn-secondary-sm">새 세션</button>') + `
+    <div class="reading-heading">
+      <div><h1>읽기 도우미</h1><p>어려운 문장부터, 함께 천천히 읽어요.</p></div>
+      <label class="current-book">읽고 있는 책
+        <input type="text" id="header-book-title" class="book-title-input" placeholder="책 제목을 입력해주세요" />
+      </label>
+    </div>`;
 
-      <div class="header-right">
-        <button id="btn-grade-toggle" class="grade-badge-btn" title="학년 변경">
-          <span>🎓</span>
-          <span>${gradeText}</span>
-          <span style="font-size: 10px; opacity: 0.7;">▾</span>
-        </button>
-        <button id="btn-reset-session" class="btn-secondary-sm" title="새 독서 세션 시작">
-          새 세션
-        </button>
-      </div>
-    </div>
-  `;
-
-  // 이벤트 바인딩
   const titleInput = container.querySelector('#header-book-title');
-  titleInput.addEventListener('change', (e) => {
-    onTitleChange(e.target.value.trim());
-  });
-
-  const gradeBtn = container.querySelector('#btn-grade-toggle');
-  gradeBtn.addEventListener('click', () => {
-    onOpenGradeModal();
-  });
-
-  const resetBtn = container.querySelector('#btn-reset-session');
-  resetBtn.addEventListener('click', () => {
-    if (confirm('현재 대화와 독서 세션을 초기화하고 새로 시작할까요?')) {
-      onResetSession();
-    }
+  titleInput.value = state.book.title || '';
+  titleInput.addEventListener('change', (e) => onTitleChange(e.target.value.trim()));
+  container.querySelector('#btn-grade-toggle').addEventListener('click', onOpenGradeModal);
+  container.querySelector('#btn-reset-session').addEventListener('click', () => {
+    if (confirm('현재 대화와 독서 세션을 초기화하고 새로 시작할까요?')) onResetSession();
   });
 }

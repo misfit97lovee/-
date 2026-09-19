@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { buildSystemPrompt, buildSummaryPrompt, buildReadingNotePrompt } from './prompts.js';
+import { createRecommendationService, createGeminiRecommendationClient, parseBookSearchXml } from './bookRecommendations.js';
 
 dotenv.config();
 
@@ -12,6 +13,11 @@ const PORT = process.env.SERVER_PORT || process.env.PORT || 3002;
 const rawApiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API || '';
 const apiKey = rawApiKey.trim();
 
+// 정보나루 (data4library) API 설정
+const DATA4LIBRARY_AUTH_KEY = process.env.DATA4LIBRARY_AUTH_KEY || '';
+const DATA4LIBRARY_LIB_CODE = process.env.DATA4LIBRARY_LIB_CODE || '';
+const DATA4LIBRARY_BASE_URL = process.env.DATA4LIBRARY_BASE_URL || 'https://data4library.kr/api';
+
 // 미들웨어 설정 (이미지 Base64 처리를 위해 20MB로 넉넉하게 설정)
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
@@ -21,22 +27,134 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     configured: Boolean(apiKey),
-    targetModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    targetModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    data4library: {
+      hasAuthKey: Boolean(DATA4LIBRARY_AUTH_KEY),
+      libCode: DATA4LIBRARY_LIB_CODE,
+      baseUrl: DATA4LIBRARY_BASE_URL
+    }
   });
+});
+
+/**
+ * data4library XML 파싱 헬퍼 함수 (외부 라이브러리 없이 안전한 정규식 추출)
+ */
+function parseLibraryXml(xmlString) {
+  const docs = [];
+  const docRegex = /<doc>([\s\S]*?)<\/doc>/g;
+  let match;
+
+  while ((match = docRegex.exec(xmlString)) !== null) {
+    const docXml = match[1];
+
+    const getTagValue = (tagName) => {
+      const regex = new RegExp(`<${tagName}>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tagName}>`, 'i');
+      const tagMatch = docXml.match(regex);
+      if (!tagMatch) return '';
+      return (tagMatch[1] !== undefined ? tagMatch[1] : tagMatch[2] || '').trim();
+    };
+
+    docs.push({
+      title: getTagValue('bookname'),
+      authors: getTagValue('authors'),
+      publisher: getTagValue('publisher'),
+      publicationYear: getTagValue('publication_year'),
+      isbn13: getTagValue('isbn13'),
+      bookImageURL: getTagValue('bookImageURL'),
+      classNm: getTagValue('class_nm')
+    });
+  }
+
+  return docs;
+}
+
+/**
+ * data4library itemSrch API 호출 헬퍼
+ */
+async function fetchCandidateBooks({ kdc = '', pageSize = 30, pageNo = 1, keyword = '', startDt = '2023-01-01', endDt = '2024-12-31' } = {}) {
+  if (!DATA4LIBRARY_AUTH_KEY || !DATA4LIBRARY_LIB_CODE) {
+    throw new Error('DATA4LIBRARY_AUTH_KEY 또는 DATA4LIBRARY_LIB_CODE 환경변수가 설정되지 않았습니다.');
+  }
+
+  let apiUrl = `${DATA4LIBRARY_BASE_URL}/itemSrch?authKey=${DATA4LIBRARY_AUTH_KEY}&libCode=${DATA4LIBRARY_LIB_CODE}&startDt=${startDt}&endDt=${endDt}&pageSize=${pageSize}&pageNo=${pageNo}`;
+  if (kdc) {
+    apiUrl += `&kdc=${encodeURIComponent(kdc)}`;
+  }
+  if (keyword) {
+    apiUrl += `&keyword=${encodeURIComponent(keyword)}`;
+  }
+
+  const response = await fetch(apiUrl, { signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new Error(`도서관 API HTTP ${response.status}`);
+  const xmlText = await response.text();
+
+  if (xmlText.includes('<error>')) {
+    throw new Error(`도서관 정보나루 API 오류: ${xmlText}`);
+  }
+
+  return parseLibraryXml(xmlText);
+}
+
+/**
+ * GET /api/library/items
+ * data4library itemSrch API 호출 및 XML -> JSON 변환
+ */
+app.get('/api/library/items', async (req, res) => {
+  try {
+    if (!DATA4LIBRARY_AUTH_KEY || !DATA4LIBRARY_LIB_CODE) {
+      return res.status(500).json({
+        error: 'DATA4LIBRARY_AUTH_KEY 또는 DATA4LIBRARY_LIB_CODE 환경변수가 설정되지 않았습니다.'
+      });
+    }
+
+    const {
+      startDt = '2023-01-01',
+      endDt = '2024-12-31',
+      pageSize = 30,
+      pageNo = 1,
+      keyword = '',
+      kdc = ''
+    } = req.query;
+
+    const books = await fetchCandidateBooks({
+      kdc,
+      pageSize: parseInt(pageSize, 10) || 30,
+      pageNo: parseInt(pageNo, 10) || 1,
+      keyword,
+      startDt,
+      endDt
+    });
+
+    return res.json({
+      success: true,
+      count: books.length,
+      kdc: kdc || '전체',
+      books
+    });
+  } catch (error) {
+    console.error('[API /api/library/items 에러]:', error.message);
+    return res.status(500).json({
+      error: '도서관 소장도서 목록을 가져오는 중 오류가 발생했습니다.',
+      details: error.message
+    });
+  }
 });
 
 /**
  * Gemini API 호출 헬퍼 (호환 모델 및 재시도 지원)
  */
-async function callGemini(contents, systemInstruction, preferredModel = 'gemini-2.5-flash') {
+async function callGemini(contents, systemInstruction, preferredModel = 'gemini-flash-latest') {
   if (!apiKey) {
     throw new Error('Gemini API 키가 서버 .env에 설정되어 있지 않습니다.');
   }
 
   const candidateModels = [
     preferredModel,
-    'gemini-3.6-flash',
     'gemini-flash-latest',
+    'gemini-2.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash-lite',
+    'gemini-3.7-flash',
     'gemini-3.5-flash'
   ];
   const modelsToTry = [...new Set(candidateModels)];
@@ -69,16 +187,17 @@ async function callGemini(contents, systemInstruction, preferredModel = 'gemini-
         if (!response.ok) {
           const errMsg = data.error?.message || response.statusText || 'API 오류';
 
-          if (response.status === 404 && errMsg.includes('no longer available')) {
+          if (response.status === 404 && (errMsg.includes('no longer available') || errMsg.includes('not found') || errMsg.includes('not supported'))) {
             console.warn(`[Gemini Model Fallback] ${model} 사용 불가 -> 다음 모델로 전환합니다.`);
             lastError = new Error(errMsg);
             break;
           }
 
-          if (response.status === 503 || response.status === 429 || errMsg.includes('high demand')) {
-            console.warn(`[Gemini Retry/Fallback] ${model} 일시적 부하 발생 (시도 ${attempt + 1}/2): ${errMsg}`);
+          if (response.status === 503 || response.status === 429 || errMsg.includes('high demand') || errMsg.includes('Quota exceeded')) {
+            console.warn(`[Gemini Retry/Fallback] ${model} 일시적 부하 또는 쿼터 제한 발생 (시도 ${attempt + 1}/2): ${errMsg}`);
             lastError = new Error(errMsg);
-            await new Promise(r => setTimeout(r, 500));
+            if (attempt === 1) break; // 2번 실패 시 다음 모델로 전환
+            await new Promise(r => setTimeout(r, 800));
             continue;
           }
 
@@ -148,7 +267,20 @@ function parseGeminiResponse(rawText) {
           .slice(0, 3);
       }
       if (parsed.comprehensionCheck) {
-        comprehensionCheck = parsed.comprehensionCheck;
+        comprehensionCheck = {
+          topic: parsed.comprehensionCheck.topic || '핵심 내용',
+          result: parsed.comprehensionCheck.result || null,
+          difficultPart: parsed.comprehensionCheck.difficultPart || null
+        };
+        if (!comprehensionCheck.result) {
+          if (message.includes('✅') || message.includes('잘 이해')) {
+            comprehensionCheck.result = '✅ 잘 이해했어요';
+          } else if (message.includes('🟡') || message.includes('거의 이해')) {
+            comprehensionCheck.result = '🟡 거의 이해했어요';
+          } else {
+            comprehensionCheck.result = '🔄 조금 더 살펴볼까요?';
+          }
+        }
       }
       if (parsed.tao) {
         tao = {
@@ -219,7 +351,23 @@ app.post('/api/chat', async (req, res) => {
       };
     });
 
-    const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    // Gemini API는 마지막 턴이 model이면 에러가 발생하므로 마지막이 model인 경우 적절한 user 턴 추가
+    if (contents.length > 0 && contents[contents.length - 1].role === 'model') {
+      let promptText = '방금 설명한 내용을 더 쉽게 설명해줘.';
+      if (explanationLevel === 'quiz_request') {
+        promptText = '방금 설명한 내용을 바탕으로 내가 잘 이해했는지 확인할 수 있는 질문이나 퀴즈를 하나 내줘.';
+      } else if (explanationLevel === 'more_easy') {
+        promptText = '방금 설명한 내용을 더 쉬운 비유와 일상적인 예시로 다시 설명해줘.';
+      } else if (explanationLevel === 'deep') {
+        promptText = '방금 설명한 내용의 배경과 더 깊은 의미를 자세히 설명해줘.';
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: promptText }]
+      });
+    }
+
+    const preferredModel = process.env.GEMINI_MODEL || 'gemini-flash-latest';
     const { text, modelUsed } = await callGemini(contents, systemPrompt, preferredModel);
     const { message, evidence = [], suggestedQuestions = [], tao, comprehensionCheck } = parseGeminiResponse(text);
 
@@ -362,6 +510,47 @@ app.post('/api/reading-note', async (req, res) => {
       details: error.message
     });
   }
+});
+
+// Separate recommendation gateway keeps reading/photo/summary model behavior unchanged.
+const recommendationEvent = event => console.log('[Book recommendation]', JSON.stringify(event));
+const recommendBooks = createRecommendationService({
+  generate: createGeminiRecommendationClient({
+    apiKey,
+    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    searchModel: process.env.GEMINI_SEARCH_MODEL || process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    onEvent: recommendationEvent
+  }),
+  fetchCandidates: fetchCandidateBooks,
+  searchTitle: async title => {
+    if (!DATA4LIBRARY_AUTH_KEY) throw new Error('Library search is not configured');
+    // srchBooks is the actual title/keyword search API; itemSrch is a holdings list.
+    const url = new URL(`${DATA4LIBRARY_BASE_URL}/srchBooks`);
+    url.search = new URLSearchParams({ authKey: DATA4LIBRARY_AUTH_KEY, title, pageNo: '1', pageSize: '30' });
+    const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error(`Library title search HTTP ${response.status}`);
+    const xml = await response.text();
+    if (xml.includes('<error>')) throw new Error('Library title search error');
+    return parseBookSearchXml(xml);
+  },
+  onEvent: recommendationEvent
+});
+
+app.post('/api/recommend-books', async (req, res) => {
+  const { userMessage, userGrade, userInterests, chatHistory } = req.body;
+  if (typeof userMessage !== 'string' || !userMessage.trim()) {
+    return res.status(400).json({ error: '사용자 메시지가 필요합니다.' });
+  }
+  const result = await recommendBooks({
+    userMessage: userMessage.trim(),
+    userGrade: typeof userGrade === 'string' ? userGrade : '중1',
+    userInterests: Array.isArray(userInterests) ? userInterests : [],
+    chatHistory: Array.isArray(chatHistory) ? chatHistory : []
+  });
+  console.log('[Book recommendation result]', JSON.stringify({
+    count: result.books.length, sourceTypes: result.books.map(b => b.sourceType), search: result.search
+  }));
+  return res.json(result);
 });
 
 app.listen(PORT, () => {

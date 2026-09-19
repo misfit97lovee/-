@@ -24,7 +24,7 @@ const alertBannerEl = document.getElementById('alert-banner');
 function showAlert(message) {
   if (!alertBannerEl) return;
   alertBannerEl.innerHTML = `
-    <span>⚠️ ${message}</span>
+    <span>${message}</span>
     <button id="btn-close-alert" style="background: none; border: none; cursor: pointer; font-size: 16px; color: inherit;">✕</button>
   `;
   alertBannerEl.classList.remove('hidden');
@@ -85,7 +85,7 @@ function renderApp() {
     }
   });
 
-  // 4. 패널 3: 독서 기록 및 TAO (요약 생성, 독서노트 업데이트, TAO 로그)
+  // 4. 패널 3: 독서 기록 및 TAO (요약 생성, 독서노트 업데이트, 이해도 지도, TAO 로그)
   renderReadingRecordPanel(panelRecordEl, {
     state,
     isSummaryLoading,
@@ -95,6 +95,10 @@ function renderApp() {
     isReadingNoteLoading,
     onGenerateReadingNote: () => {
       handleGenerateReadingNote();
+    },
+    onRetryExplain: (topic) => {
+      handleSendMessage(`이 부분 다시 설명해줘: ${topic}`);
+      switchMobileTab('panel-chat');
     }
   });
 
@@ -156,7 +160,7 @@ async function handleSendMessage(content) {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.details || data.error || 'AI 응답 요청에 실패했습니다.');
+      throw new Error(data.details || data.error || '답변 요청에 실패했습니다.');
     }
 
     if (data.message) {
@@ -198,7 +202,7 @@ async function handleSendMessage(content) {
     }
   } catch (err) {
     console.error('채팅 요청 에러:', err);
-    showAlert('AI 서버와 일시적으로 연결되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+    showAlert('일시적으로 연결되지 않았습니다. 잠시 후 다시 시도해 주세요.');
     stateManager.addMessage(
       'assistant',
       '미안해, 답변을 생성하는 중에 일시적인 오류가 발생했어. 잠시 후 다시 질문해 줄래?'
@@ -540,6 +544,12 @@ function initMobileNav() {
 
 // 앱 시작
 window.addEventListener('DOMContentLoaded', () => {
+  // [이 책 읽기] 연동: URL 파라미터로 전달된 책 제목이 있는 경우 즉시 반영
+  const urlParams = new URLSearchParams(window.location.search);
+  const titleParam = urlParams.get('title');
+  if (titleParam) {
+    stateManager.setBookTitle(decodeURIComponent(titleParam));
+  }
   initMobileNav();
   renderApp();
 });
